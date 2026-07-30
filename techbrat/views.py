@@ -111,7 +111,11 @@ def get_landing_context(request=None, auth_mode='signup'):
     except Exception:
         google_enabled = bool(settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET)
         github_enabled = bool(settings.GITHUB_CLIENT_ID and settings.GITHUB_CLIENT_SECRET)
-
+    print("Request Host:", request_host)
+    print("Site Domain:", site_domain)
+    print("Host Matches:", host_matches_site)
+    print("Google Exists:", SocialApp.objects.filter(provider="google", sites=site).exists())
+    print("Google Enabled:", google_enabled)
     return {
         'google_login_enabled': google_enabled,
         'github_login_enabled': github_enabled,

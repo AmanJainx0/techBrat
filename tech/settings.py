@@ -50,7 +50,8 @@ if ALLOWED_HOSTS_RAW:
     ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_RAW.split(',') if host.strip()]
 else:
     if DEBUG:
-        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+        if DEBUG:
+            ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]", ".vercel.app"]
     else:
         from django.core.exceptions import ImproperlyConfigured
         raise ImproperlyConfigured("The ALLOWED_HOSTS environment variable must be set in production.")
