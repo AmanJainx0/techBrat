@@ -11,12 +11,6 @@ try:
 except ImportError:
     dj_database_url = None
 
-try:
-    import pymysql
-    pymysql.install_as_MySQLdb()
-except ImportError:
-    pass
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
@@ -41,30 +35,35 @@ def env_any(*names, default=None):
 # --------------------------------------------------
 # Security
 # --------------------------------------------------
-SECRET_KEY = os.getenv(
-    'DJANGO_SECRET_KEY',
-    'django-insecure-c7rb&3u0dzxgsg94bqjq_)=qu_-a@v2htepbbu(xf^vgvmjgk('
-)
-
 DEBUG = env_bool('DEBUG', default=True)
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv(
-        'ALLOWED_HOSTS',
-        'localhost,127.0.0.1,*'
-    ).split(',')
-    if host.strip()
-]
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'django-insecure-c7rb&3u0dzxgsg94bqjq_)=qu_-a@v2htepbbu(xf^vgvmjgk('
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured("The DJANGO_SECRET_KEY environment variable must be set in production.")
 
-CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        'CSRF_TRUSTED_ORIGINS',
-        ''
-    ).split(',')
-    if origin.strip()
-]
+ALLOWED_HOSTS_RAW = os.getenv('ALLOWED_HOSTS')
+if ALLOWED_HOSTS_RAW:
+    ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_RAW.split(',') if host.strip()]
+else:
+    if DEBUG:
+        ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured("The ALLOWED_HOSTS environment variable must be set in production.")
+
+CSRF_TRUSTED_ORIGINS_RAW = os.getenv('CSRF_TRUSTED_ORIGINS')
+if CSRF_TRUSTED_ORIGINS_RAW:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_RAW.split(',') if origin.strip()]
+else:
+    if DEBUG:
+        CSRF_TRUSTED_ORIGINS = []
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured("The CSRF_TRUSTED_ORIGINS environment variable must be set in production.")
 
 SITE_DOMAIN = os.getenv('SITE_DOMAIN', 'localhost')
 SITE_NAME = os.getenv('SITE_NAME', 'TechBrat')
@@ -146,8 +145,7 @@ WSGI_APPLICATION = 'tech.wsgi.application'
 # --------------------------------------------------
 DATABASE_URL = env_any(
     'DATABASE_URL',
-    'RAILWAY_DATABASE_URL',
-    'MYSQL_DATABASE_URL'
+    'RAILWAY_DATABASE_URL'
 )
 
 if DATABASE_URL and dj_database_url:
@@ -158,19 +156,8 @@ if DATABASE_URL and dj_database_url:
         ),
     }
 else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.mysql',
-            'NAME': env_any('DB_NAME') or 'techbrat',
-            'USER': env_any('DB_USER') or 'root',
-            'PASSWORD': env_any('DB_PASSWORD') or 'admin1234',
-            'HOST': env_any('DB_HOST') or 'localhost',
-            'PORT': env_any('DB_PORT') or '3306',
-            'OPTIONS': {
-                'charset': 'utf8mb4',
-            }
-        }
-    }
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured("The DATABASE_URL environment variable must be set to a PostgreSQL database connection string.")
 
 
 # --------------------------------------------------
@@ -281,9 +268,20 @@ CACHES = {
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 OPENROUTER_MODEL = os.getenv(
     'OPENROUTER_MODEL',
-    'google/gemma-4-26b-a4b'
+    'google/gemma-4-26b-a4b-it:free'
 )
 
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    
+    # SSL and HSTS configurations
+    SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', default=True)
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', 31536000))  # 1 year default
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Additional security headers
+    SECURE_CONTENT_TYPE_NOSNIFF = True

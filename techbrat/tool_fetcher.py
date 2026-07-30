@@ -54,7 +54,7 @@ def is_query_tech_related(query):
                 'Content-Type': 'application/json',
             },
             json={
-                'model': getattr(settings, 'OPENROUTER_MODEL', 'google/gemini-2.0-flash-001'),
+                'model': getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free'),
                 'messages': [
                     {
                         'role': 'user',
@@ -152,7 +152,7 @@ Generate NOW:"""
                 'Content-Type': 'application/json',
             },
             json={
-                'model': getattr(settings, 'OPENROUTER_MODEL', 'google/gemini-2.0-flash-001'),
+                'model': getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free'),
                 'messages': [{'role': 'user', 'content': prompt}],
                 'temperature': 0.7,
             },

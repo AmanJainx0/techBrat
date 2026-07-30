@@ -3657,7 +3657,7 @@ def filter_courses(request):
     if queryset.count() < 6 or not queryset.exists():
 
         api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-        model = getattr(settings, 'OPENROUTER_MODEL', 'google/gemini-2.0-flash-001')
+        model = getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free')
 
         if api_key:
 

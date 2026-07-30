@@ -23,7 +23,7 @@ def fetch_external_courses(level, domain, learning_type, is_free):
     If both fail, returns [] silently.
     """
     api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-    model = getattr(settings, 'OPENROUTER_MODEL', 'google/gemini-2.0-flash-001')
+    model = getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free')
 
     if not api_key:
         return []
