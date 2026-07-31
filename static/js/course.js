@@ -165,58 +165,77 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        courseContainer.innerHTML = courses.map(c => `
-            <div class="course-card">
-                <div class="card-accent"></div>
-                <div class="card-body">
-                    <div class="card-badges">
-                        <span class="badge badge-level">${escapeHTML(c.level_display || c.level)}</span>
-                        <span class="badge ${c.is_free ? 'badge-free' : 'badge-paid'}">
-                            ${c.is_free ? 'Free' : 'Paid'}
-                        </span>
-                    </div>
-                    <h3 class="card-title">${escapeHTML(c.title)}</h3>
-                    <div class="card-platform"><i class="fas fa-building"></i> ${escapeHTML(c.platform)}</div>
-                    <p class="card-description">${escapeHTML(c.description)}</p>
-                    <div class="card-meta">
-                        <span class="card-meta-item"><i class="far fa-clock"></i> ${escapeHTML(c.duration || 'Self-paced')}</span>
-                        <span class="card-meta-item"><i class="fas fa-graduation-cap"></i> ${escapeHTML(c.learning_type_display || c.learning_type)}</span>
-                    </div>
-                    <div class="card-footer">
-                        <a href="${escapeHTML(c.link)}" target="_blank" rel="noopener" class="btn-start">
-                            Start Course <i class="fas fa-arrow-right"></i>
-                        </a>
-                        ${c.detail_url ? `
-                        <a href="${escapeHTML(c.detail_url)}" class="btn-preview btn-details">
-                            <i class="fas fa-up-right-from-square"></i> Details
-                        </a>
-                        ` : ''}
-                        ${c.id ? `
-                        <button
-                            type="button"
-                            class="save-toggle-btn course-save-btn ${c.saved ? 'is-saved' : ''}"
-                            data-object-id="${c.id}"
-                            data-content-type="${escapeHTML(c.content_type || 'course')}"
-                            data-saved="${c.saved ? 'true' : 'false'}">
-                            <i class="${c.saved ? 'fas' : 'far'} fa-bookmark"></i>
-                            <span data-save-label>${c.saved ? 'Saved Course' : 'Save Course'}</span>
-                        </button>
-                        ` : ''}
-                        <button class="btn-preview" data-course='${escapeAttr(JSON.stringify({
-                            title: c.title,
-                            platform: c.platform,
-                            desc: c.description,
-                            link: c.link,
-                            duration: c.duration,
-                            learning_type: c.learning_type_display || c.learning_type
-                        }))}'>
-                            <i class="fas fa-eye"></i> Preview
-                        </button>
-                    </div>
-
+        courseContainer.innerHTML = courses.map(c => {
+            const detailsLink = c.detail_url ? `
+                <div class="col-12 p-0 mt-2">
+                    <a href="${escapeHTML(c.detail_url)}" class="btn btn-link btn-details-link w-100 text-center text-decoration-none">
+                        View Full Details <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
                 </div>
-            </div>
-        `).join('');
+            ` : '';
+
+            return `
+                <div class="course-card">
+                    ${c.id ? `
+                    <button
+                        type="button"
+                        class="save-toggle-btn course-save-btn btn-bookmark-floating ${c.saved ? 'is-saved' : ''}"
+                        data-object-id="${c.id}"
+                        data-content-type="${escapeHTML(c.content_type || 'course')}"
+                        data-saved="${c.saved ? 'true' : 'false'}"
+                        aria-label="Save Course">
+                        <i class="${c.saved ? 'fas' : 'far'} fa-bookmark"></i>
+                    </button>
+                    ` : ''}
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="card-badges">
+                            <span class="badge badge-level">${escapeHTML(c.level_display || c.level)}</span>
+                            <span class="badge ${c.is_free ? 'badge-free' : 'badge-paid'}">
+                                ${c.is_free ? 'Free' : 'Paid'}
+                            </span>
+                        </div>
+
+                        <div class="course-platform">
+                            <i class="fas fa-building"></i>${escapeHTML(c.platform)}
+                        </div>
+                        <h3 class="card-title">${escapeHTML(c.title)}</h3>
+                        <p class="card-description">${escapeHTML(c.description)}</p>
+
+                        <div class="course-meta">
+                            <span><i class="far fa-clock"></i>${escapeHTML(c.duration || 'Self-paced')}</span>
+                            <span><i class="fas fa-graduation-cap"></i>${escapeHTML(c.learning_type_display || c.learning_type)}</span>
+                        </div>
+
+                        <div class="card-footer mt-auto p-0 border-0 bg-transparent">
+                            <div class="row g-2 w-100 m-0">
+                                <div class="col-6 p-0">
+                                    <a href="${escapeHTML(c.link)}" target="_blank" rel="noopener" class="btn btn-primary w-100 btn-action">
+                                        Start Learning <i class="fas fa-external-link-alt ms-1 small"></i>
+                                    </a>
+                                </div>
+                                <div class="col-6 p-0">
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-secondary w-100 btn-action btn-preview"
+                                        data-course='${escapeAttr(JSON.stringify({
+                                            title: c.title,
+                                            platform: c.platform,
+                                            desc: c.description,
+                                            link: c.link,
+                                            duration: c.duration,
+                                            learning_type: c.learning_type_display || c.learning_type
+                                        }))}'>
+                                        <i class="fas fa-eye me-1"></i> Preview
+                                    </button>
+                                </div>
+                                ${detailsLink}
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            `;
+        }).join('');
 
         updateCount(courses.length);
         attachMobilePreviewHandlers();
