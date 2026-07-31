@@ -264,13 +264,13 @@ CACHES = {
         'TIMEOUT': 600,
     }
 }
+AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter")
 
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL")
 
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
-OPENROUTER_MODEL = os.getenv(
-    'OPENROUTER_MODEL',
-    'google/gemma-4-26b-a4b-it:free'
-)
+OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL')
 
 if not DEBUG:
     SESSION_COOKIE_SECURE = True

@@ -7,7 +7,7 @@ platform-specific URLs, and provides deduplication utilities.
 
 import json
 from django.conf import settings
-from utils.openrouter_client import post_openrouter
+from utils.ai_client import chat_completion, is_ai_configured
 
 
 # ─── External Course Fetcher ───────────────────────────────────
@@ -22,10 +22,7 @@ def fetch_external_courses(level, domain, learning_type, is_free):
     On ANY failure, retries once with a simpler prompt.
     If both fail, returns [] silently.
     """
-    api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-    model = getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free')
-
-    if not api_key:
+    if not is_ai_configured():
         return []
 
     free_label = "Free" if is_free else "Paid"
@@ -86,7 +83,7 @@ Return ONLY a valid JSON array (no markdown, no explanation):
 ]"""
 
     # ─── Try primary prompt ────────────────────────────────
-    result = _call_openrouter(api_key, model, prompt, level, domain_text, learning_type, is_free)
+    result = _call_ai(prompt, level, domain_text, learning_type, is_free)
     if result:
         return result
 
@@ -96,27 +93,19 @@ Return ONLY a valid JSON array. Each object must have: title, platform, level, d
 Use real platforms like Coursera, Udemy, YouTube, edX, freeCodeCamp.
 No markdown, no extra text."""
 
-    result = _call_openrouter(api_key, model, simple_prompt, level, domain_text, learning_type, is_free)
+    result = _call_ai(simple_prompt, level, domain_text, learning_type, is_free)
     return result if result else []
 
 
-def _call_openrouter(api_key, model, prompt, level, domain_text, learning_type, is_free):
+def _call_ai(prompt, level, domain_text, learning_type, is_free):
     """
-    Internal helper: makes the actual OpenRouter API call and parses/validates the result.
+    Internal helper: makes the actual AI API call and parses/validates the result.
     Returns list[dict] on success, or None on failure.
     """
     try:
-        response = post_openrouter(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "temperature": 0.3,
-                "messages": [{"role": "user", "content": prompt}]
-            },
+        response = chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
             timeout=15
         )
 

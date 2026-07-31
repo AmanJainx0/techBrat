@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from techbrat.models import Tool
-from utils.openrouter_client import post_openrouter
+from utils.ai_client import chat_completion, is_ai_configured
 
 
 # ─── Non-Tech Keywords (Fast Filter) ───────────────────────────
@@ -41,31 +41,22 @@ def is_query_tech_related(query):
             return False, "This platform supports only technology-related tools and platforms."
     
     # Stage 2: AI validation for unclear queries
-    api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-    if not api_key:
+    if not is_ai_configured():
         # If no AI available, assume tech if not in blocked list
         return True, ""
     
     try:
-        response = post_openrouter(
-            'https://openrouter.ai/api/v1/chat/completions',
-            headers={
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json',
-            },
-            json={
-                'model': getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free'),
-                'messages': [
-                    {
-                        'role': 'user',
-                        'content': f"""Is this related to software development, programming, technology, or tech tools?
+        response = chat_completion(
+            messages=[
+                {
+                    'role': 'user',
+                    'content': f"""Is this related to software development, programming, technology, or tech tools?
 Query: "{query}"
-
+ 
 Respond with ONLY: YES or NO"""
-                    }
-                ],
-                'temperature': 0.3,
-            },
+                }
+            ],
+            temperature=0.3,
             timeout=5
         )
         
@@ -101,8 +92,7 @@ def generate_tools_via_ai(category=None, difficulty=None, use_case=None, count=6
     Use AI to generate real technology tools/platforms.
     Returns: list[dict] with tool data
     """
-    api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-    if not api_key:
+    if not is_ai_configured():
         return []
     
     category_text = category if category and category != 'all' else 'various technology domains'
@@ -145,17 +135,9 @@ Examples of GOOD tools to generate:
 Generate NOW:"""
 
     try:
-        response = post_openrouter(
-            'https://openrouter.ai/api/v1/chat/completions',
-            headers={
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json',
-            },
-            json={
-                'model': getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free'),
-                'messages': [{'role': 'user', 'content': prompt}],
-                'temperature': 0.7,
-            },
+        response = chat_completion(
+            messages=[{'role': 'user', 'content': prompt}],
+            temperature=0.7,
             timeout=10
         )
         

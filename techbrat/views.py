@@ -22,7 +22,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from utils.ai_validator import is_tech_query, normalize_tech_query, get_alternative_suggestions
 from utils.opportunity_sources import SOURCE_LABELS, fetch_live_opportunities
-from utils.openrouter_client import post_openrouter
+from utils.ai_client import chat_completion, is_ai_configured
 
 from techbrat.models import (
     Book,
@@ -78,8 +78,6 @@ def _get_safe_next_url(request, default=''):
         return candidate
 
     return default
-
-
 def get_landing_context(request=None, auth_mode='signup'):
     try:
         from allauth.socialaccount.models import SocialApp
@@ -88,7 +86,9 @@ def get_landing_context(request=None, auth_mode='signup'):
         request_host = request.get_host().split(':', 1)[0] if request else ''
         site_domain_raw = (site.domain or '').strip().lower()
         site_domain = site_domain_raw.split(':', 1)[0]
+
         local_aliases = {'127.0.0.1', 'localhost'}
+
         host_matches_site = bool(request_host) and (
             site_domain == request_host.lower()
             or (
@@ -96,31 +96,54 @@ def get_landing_context(request=None, auth_mode='signup'):
                 and request_host.lower() in local_aliases
             )
         )
+
         site_is_placeholder = site_domain in {'', 'example.com'}
 
+        google_exists = SocialApp.objects.filter(
+            provider='google',
+            sites=site
+        ).exists()
+
+        github_exists = SocialApp.objects.filter(
+            provider='github',
+            sites=site
+        ).exists()
+
         google_enabled = (
-            SocialApp.objects.filter(provider='google', sites=site).exists()
+            google_exists
             and host_matches_site
             and not site_is_placeholder
         )
+
         github_enabled = (
-            SocialApp.objects.filter(provider='github', sites=site).exists()
+            github_exists
             and host_matches_site
             and not site_is_placeholder
         )
-    except Exception:
+
+        print("=== Landing Context ===")
+        print("Request Host:", request_host)
+        print("Site Domain:", site_domain)
+        print("Host Matches:", host_matches_site)
+        print("Placeholder:", site_is_placeholder)
+        print("Google Exists:", google_exists)
+        print("Google Enabled:", google_enabled)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+
         google_enabled = bool(settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET)
         github_enabled = bool(settings.GITHUB_CLIENT_ID and settings.GITHUB_CLIENT_SECRET)
-    print("Request Host:", request_host)
-    print("Site Domain:", site_domain)
-    print("Host Matches:", host_matches_site)
-    print("Google Exists:", SocialApp.objects.filter(provider="google", sites=site).exists())
-    print("Google Enabled:", google_enabled)
+
+        print("Exception:", e)
+        print("Fallback Google Enabled:", google_enabled)
+
     return {
-        'google_login_enabled': google_enabled,
-        'github_login_enabled': github_enabled,
-        'auth_mode': auth_mode,
-        'next_url': _get_safe_next_url(request) if request else '',
+        "google_login_enabled": google_enabled,
+        "github_login_enabled": github_enabled,
+        "auth_mode": auth_mode,
+        "next_url": _get_safe_next_url(request) if request else "",
     }
 
 
@@ -2492,29 +2515,23 @@ def ai_is_tech_related(prompt: str) -> bool:
     NEVER raises exception.
     Returns False if unsure.
     """
+    if not is_ai_configured():
+        return False
     try:
-        response = post_openrouter(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.OPENROUTER_MODEL,
-                "temperature": 0,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a strict classifier.\n"
-                            "Answer ONLY with YES or NO.\n"
-                            "Is the following query related to technology, "
-                            "software development, computer science, or IT?"
-                        )
-                    },
-                    {"role": "user", "content": prompt}
-                ]
-            },
+        response = chat_completion(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a strict classifier.\n"
+                        "Answer ONLY with YES or NO.\n"
+                        "Is the following query related to technology, "
+                        "software development, computer science, or IT?"
+                    )
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
             timeout=8
         )
 
@@ -2583,21 +2600,14 @@ def generate_roadmap(request):
         # -------------------------
         # AI Request
         # -------------------------
-        response = post_openrouter(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "http://localhost",
-                "X-Title": "TechBrat Roadmap Generator",
-            },
-            json={
-                "model": settings.OPENROUTER_MODEL,
-                "temperature": 0.4,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": f"""
+        if not is_ai_configured():
+            return JsonResponse({"success": False, "error": "AI provider is not configured"}, status=500)
+
+        response = chat_completion(
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"""
 You are an expert technical architect and educator.
 Role: Generate a PRECISE and BROAD technical roadmap for a {user_level} learner.
 
@@ -2628,7 +2638,7 @@ STRICT JSON STRUCTURE (NO EXTRA TEXT):
                     },
                     {"role": "user", "content": prompt}
                 ],
-            },
+            temperature=0.4,
             timeout=25
         )
 
@@ -2793,23 +2803,18 @@ Return ONLY valid JSON in this exact format:
 }}
 """
 
-        response = post_openrouter(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.OPENROUTER_MODEL,
-                "temperature": 0.5,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": f"Student Name: {user_name}\nIssue: {issue}",
-                    },
-                ],
-            },
+        if not is_ai_configured():
+            return JsonResponse({"success": False, "error": "AI provider is not configured"}, status=500)
+
+        response = chat_completion(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": f"Student Name: {user_name}\nIssue: {issue}",
+                },
+            ],
+            temperature=0.5,
             timeout=25,
         )
 
@@ -2916,20 +2921,15 @@ def career_guidance(request):
             location_preference=location_preference,
         ) + f"\n\nAssessed learner level: {user_level}\nUser name: {user_name}\nPreferred learning style: {learning_style}\nEducation level: {education_level}\n"
 
-        response = post_openrouter(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.OPENROUTER_MODEL,
-                "temperature": 0.5,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-            },
+        if not is_ai_configured():
+            return JsonResponse({"success": False, "error": "AI provider is not configured"}, status=500)
+
+        response = chat_completion(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.5,
         )
 
         raw = response.json()
@@ -3183,20 +3183,15 @@ Return ONLY JSON array.
 """
 
     try:
-        response = post_openrouter(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.OPENROUTER_MODEL,
-                "temperature": 0.4,
-                "messages": [
-                    {"role": "system", "content": "Return only JSON array of books."},
-                    {"role": "user", "content": prompt}
-                ],
-            },
+        if not is_ai_configured():
+            return JsonResponse({"success": False, "error": "AI provider is not configured"}, status=500)
+
+        response = chat_completion(
+            messages=[
+                {"role": "system", "content": "Return only JSON array of books."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.4,
             timeout=20,
         )
         raw = response.json()
@@ -3660,10 +3655,7 @@ def filter_courses(request):
 
     if queryset.count() < 6 or not queryset.exists():
 
-        api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-        model = getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free')
-
-        if api_key:
+        if is_ai_configured():
 
             free_or_paid = "Free" if is_free_bool else "Paid"
             domain_text = domain if domain else "general technology"
@@ -3717,16 +3709,8 @@ Return ONLY JSON ARRAY (no markdown):
 """
 
             try:
-                response = post_openrouter(
-                    url="https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": model,
-                        "messages": [{"role": "user", "content": prompt}]
-                    },
+                response = chat_completion(
+                    messages=[{"role": "user", "content": prompt}],
                     timeout=15
                 )
 
@@ -3795,16 +3779,8 @@ Return ONLY JSON ARRAY (no markdown):
                 # ─── Retry with simpler prompt ─────────────
                 try:
                     simple_prompt = f"Generate 6 {free_or_paid.lower()} beginner courses for {domain_text}. Return ONLY JSON array with fields: title, platform, level, domain, learning_type, is_free, duration, description, link. No markdown."
-                    retry_resp = post_openrouter(
-                        url="https://openrouter.ai/api/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "model": model,
-                            "messages": [{"role": "user", "content": simple_prompt}]
-                        },
+                    retry_resp = chat_completion(
+                        messages=[{"role": "user", "content": simple_prompt}],
                         timeout=15
                     )
                     if retry_resp.status_code == 200:

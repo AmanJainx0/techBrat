@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from django.utils import timezone
 from techbrat.models import Tip
-from utils.openrouter_client import post_openrouter
+from utils.ai_client import chat_completion, is_ai_configured
 
 
 # ─── Non-Tech Keywords (Fast Filter) ───────────────────────────
@@ -41,33 +41,24 @@ def is_tip_tech_related(title, explanation):
             return False, "This section provides only tech-related motivation and learning tips."
     
     # Stage 2: AI validation for unclear content
-    api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-    if not api_key:
+    if not is_ai_configured():
         return True, ""
     
     try:
-        response = post_openrouter(
-            'https://openrouter.ai/api/v1/chat/completions',
-            headers={
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json',
-            },
-            json={
-                'model': getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free'),
-                'messages': [
-                    {
-                        'role': 'user',
-                        'content': f"""Is this motivation/tip related to learning programming or technology career growth?
+        response = chat_completion(
+            messages=[
+                {
+                    'role': 'user',
+                    'content': f"""Is this motivation/tip related to learning programming or technology career growth?
 
 Title: {title}
 Explanation: {explanation}
 
 Answer YES or NO only:"""
-                    }
-                ],
-                'temperature': 0.3,
-                'max_tokens': 10,
-            },
+                }
+            ],
+            temperature=0.3,
+            max_tokens=10,
             timeout=5
         )
         
@@ -129,8 +120,7 @@ def generate_tips_via_ai(category=None, count=5):
     Use AI to generate practical tech motivation tips.
     Returns: list[dict] with tip data
     """
-    api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-    if not api_key:
+    if not is_ai_configured():
         return []
     
     category_text = category if category and category != 'all' else 'general tech learning and career growth'
@@ -174,17 +164,9 @@ Examples of GOOD tips:
 Generate NOW:"""
 
     try:
-        response = post_openrouter(
-            'https://openrouter.ai/api/v1/chat/completions',
-            headers={
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json',
-            },
-            json={
-                'model': getattr(settings, 'OPENROUTER_MODEL', 'google/gemma-4-26b-a4b-it:free'),
-                'messages': [{'role': 'user', 'content': prompt}],
-                'temperature': 0.7,
-            },
+        response = chat_completion(
+            messages=[{'role': 'user', 'content': prompt}],
+            temperature=0.7,
             timeout=10
         )
         

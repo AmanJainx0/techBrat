@@ -3,7 +3,7 @@ from django.conf import settings
 from django.core.cache import cache
 import random
 from urllib.parse import quote
-from utils.openrouter_client import post_openrouter
+from utils.ai_client import chat_completion, is_ai_configured
 
 TECH_NORMALIZATION_MAP = {
     "redi": "Redis",
@@ -67,39 +67,33 @@ def contains_obvious_tech(text: str) -> bool:
 
 
 def ai_is_tech_related(query: str) -> bool:
+    if not is_ai_configured():
+        return False
     try:
-        response = post_openrouter(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.OPENROUTER_MODEL,
-                "temperature": 0,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a strict but intelligent classifier.\n"
-                            "Answer ONLY YES or NO.\n\n"
-                            "Return YES if query is related to:\n"
-                            "- programming\n"
-                            "- software development\n"
-                            "- computer science\n"
-                            "- IT\n"
-                            "- databases (Redis, MySQL, MongoDB)\n"
-                            "- cloud (AWS, Azure)\n"
-                            "- DevOps tools (Docker, Kubernetes)\n"
-                            "- AI/ML, data science\n"
-                            "- backend, frontend, system design\n\n"
-                            "Return NO for non-tech topics like:\n"
-                            "- cooking, dance, fitness, sports, fashion, music"
-                        )
-                    },
-                    {"role": "user", "content": query}
-                ]
-            },
+        response = chat_completion(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a strict but intelligent classifier.\n"
+                        "Answer ONLY YES or NO.\n\n"
+                        "Return YES if query is related to:\n"
+                        "- programming\n"
+                        "- software development\n"
+                        "- computer science\n"
+                        "- IT\n"
+                        "- databases (Redis, MySQL, MongoDB)\n"
+                        "- cloud (AWS, Azure)\n"
+                        "- DevOps tools (Docker, Kubernetes)\n"
+                        "- AI/ML, data science\n"
+                        "- backend, frontend, system design\n\n"
+                        "Return NO for non-tech topics like:\n"
+                        "- cooking, dance, fitness, sports, fashion, music"
+                    )
+                },
+                {"role": "user", "content": query}
+            ],
+            temperature=0,
             timeout=6
         )
 
